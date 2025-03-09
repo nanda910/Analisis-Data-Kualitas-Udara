@@ -1,120 +1,53 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import geopandas as gpd
-import folium
-from streamlit_folium import folium_static
-from datetime import datetime
 
-# --------------------------------------
-# BIODATA PEMBUAT
-# --------------------------------------
-# Nama: Dewangga Megananda
-# ID Dicoding: MC-13
-# Kode: mc009d5y0642
+# Load dataset
+def load_data():
+    data = pd.read_csv("PRSA_Data_Guanyuan_20130301-20170228.csv")  # Ganti dengan path dataset asli
+    return data
 
-# Streamlit UI
-st.title("Dashboard Analisis Data PM2.5")
-st.sidebar.header("Biodata Pembuat")
-st.sidebar.text("Nama: Dewangga Megananda")
-st.sidebar.text("ID Dicoding: MC-13")
-st.sidebar.text("Kode: mc009d5y0642")
+data = load_data()
 
-# 1. Gathering Data
-df = pd.read_csv("PRSA_Data_Guanyuan_20130301-20170228.csv")
+# Sidebar untuk filter
+# Sidebar untuk filter
+st.sidebar.header("Filter Data")
+selected_year = st.sidebar.selectbox("Pilih Tahun", data["year"].unique())
+selected_month = st.sidebar.selectbox("Pilih Bulan", data["month"].unique())
 
-# Menampilkan informasi dasar tentang dataset
-st.write("## Informasi Dataset")
-st.write(df.info())
-st.write(df.head())
+# Filter data berdasarkan input pengguna
+filtered_data = data[(data["year"] == selected_year) & (data["month"] == selected_month)]
 
-# 2. Assesing Data
-st.write("## Missing Values")
-st.write(df.isnull().sum())
+# Informasi tentang PM2.5 dan Polusi Udara
+st.markdown("## Tentang Polusi Udara")
+st.markdown("**PM2.5** adalah partikel udara berukuran kecil (diameter ≤2.5µm) yang dapat masuk ke paru-paru dan menyebabkan masalah kesehatan serius, seperti penyakit pernapasan dan kardiovaskular.")
+st.markdown("**PM10** terdiri dari partikel yang sedikit lebih besar tetapi masih berbahaya jika terhirup dalam jumlah besar.")
+st.markdown("Polusi udara dapat dipengaruhi oleh faktor seperti cuaca, musim, dan aktivitas manusia seperti transportasi dan industri.")
 
-st.write("## Nilai Unik dalam Kolom")
-for col in df.columns:
-    st.write(f"{col} Unique Values: {df[col].unique()[:10]}")
-
-duplicate_count = df.duplicated().sum()
-st.write(f"Jumlah data duplikat: {duplicate_count}")
-
-st.write("## Statistik Deskriptif")
-st.write(df.describe())
-
-pollutants = ['PM2.5', 'PM10', 'SO2', 'NO2', 'CO', 'O3']
-for col in pollutants:
-    invalid_values = df[df[col] < 0]
-    if not invalid_values.empty:
-        st.write(f"Data tidak valid ditemukan di {col}:")
-        st.write(invalid_values.head())
-    else:
-        st.write(f"Tidak ada data tidak valid pada {col}.")
-
-# 3. Cleaning Data
-df.dropna(inplace=True)
-df.drop_duplicates(inplace=True)
-
-required_time_cols = {'year', 'month', 'day', 'hour'}
-if required_time_cols.issubset(df.columns):
-    df['year'] = df['year'].astype(int)
-    df['month'] = df['month'].astype(int)
-    df['day'] = df['day'].astype(int)
-    df['hour'] = df['hour'].astype(int)
-else:
-    st.write("Kolom waktu tidak lengkap, konversi tipe data tidak dilakukan.")
-
-# Handling Outliers
-numerical_cols = df.select_dtypes(include=['number']).columns
-for col in numerical_cols:
-    Q1 = df[col].quantile(0.25)
-    Q3 = df[col].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
-    df = df[(df[col] >= lower_bound) & (df[col] <= upper_bound)]
-
-# --------------------------------------
-# VISUALISASI DATA
-# --------------------------------------
-
-# Distribusi PM2.5
-st.subheader("Distribusi PM2.5")
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.histplot(df['PM2.5'], bins=30, kde=True, ax=ax)
-ax.set_xlabel("Konsentrasi PM2.5")
-ax.set_ylabel("Frekuensi")
+# Visualisasi 1: Tren PM2.5 selama setahun terakhir
+st.subheader("Tren PM2.5 Selama Setahun Terakhir")
+fig, ax = plt.subplots()
+sns.lineplot(data=data[data["year"] == selected_year], x="month", y="PM2.5", estimator="mean", ci=None, ax=ax)
+plt.xlabel("Bulan")
+plt.ylabel("Rata-rata PM2.5 (µg/m³)")
 st.pyplot(fig)
 
-# Tren PM2.5
-st.subheader("Tren Bulanan PM2.5")
-df['datetime'] = pd.to_datetime(df[['year', 'month', 'day', 'hour']])
-df.set_index('datetime', inplace=True)
-df['month_year'] = df.index.to_period('M')
-fig, ax = plt.subplots(figsize=(12, 5))
-df.groupby('month_year')['PM2.5'].mean().plot(ax=ax)
-ax.set_title("Tren Bulanan PM2.5")
+# Insight dan Kesimpulan Visualisasi 1
+st.markdown("**Insight:** Dari visualisasi ini, kita dapat melihat bagaimana tren rata-rata PM2.5 berubah sepanjang tahun. Jika terdapat lonjakan tertentu, kemungkinan besar disebabkan oleh faktor lingkungan seperti musim, pola cuaca, atau aktivitas manusia.")
+st.markdown("**Kesimpulan:** Tren PM2.5 bervariasi sepanjang tahun. Jika pola menunjukkan peningkatan signifikan di bulan tertentu, ini dapat menjadi indikasi polusi yang lebih tinggi akibat musim dingin atau peningkatan aktivitas industri dan transportasi.")
+
+# Visualisasi 2: Korelasi antara Suhu dan PM2.5
+st.subheader("Korelasi antara Suhu dan PM2.5")
+fig, ax = plt.subplots()
+sns.scatterplot(data=filtered_data, x="TEMP", y="PM2.5", hue="hour", palette="coolwarm", ax=ax)
+plt.xlabel("Suhu (°C)")
+plt.ylabel("Konsentrasi PM2.5 (µg/m³)")
 st.pyplot(fig)
 
-# Korelasi TEMP vs PM2.5
-st.subheader("Korelasi Suhu dan PM2.5")
-correlation = df[['TEMP', 'PM2.5']].corr().iloc[0,1]
-st.write(f"Korelasi antara suhu (TEMP) dan PM2.5: {correlation:.2f}")
-fig, ax = plt.subplots(figsize=(8,5))
-sns.scatterplot(x=df['TEMP'], y=df['PM2.5'], alpha=0.5, ax=ax)
-ax.set_xlabel('Temperature (°C)')
-ax.set_ylabel('PM2.5')
-ax.set_title('Scatter Plot TEMP vs PM2.5')
-st.pyplot(fig)
+# Insight dan Kesimpulan Visualisasi 2
+st.markdown("**Insight:** Scatter plot menunjukkan hubungan antara suhu dan konsentrasi PM2.5. Jika titik-titik cenderung membentuk pola tertentu, maka ada indikasi korelasi antara kedua variabel ini.")
+st.markdown("**Kesimpulan:** Jika terdapat korelasi negatif yang jelas, berarti suhu yang lebih rendah cenderung meningkatkan konsentrasi PM2.5, yang bisa disebabkan oleh inversi suhu di musim dingin yang menjebak polutan di lapisan udara bawah.")
 
-# --------------------------------------
-# VISUALISASI PETA LOKASI STASIUN
-# --------------------------------------
-
-st.subheader("Peta Lokasi Stasiun Pemantauan")
-map_center = [39.9334, 116.3406]  # Lokasi stasiun di Beijing
-m = folium.Map(location=map_center, zoom_start=10)
-folium.Marker(map_center, popup="Stasiun Guanyuan", tooltip="Stasiun Guanyuan").add_to(m)
-folium_static(m)
+# Tambahkan deskripsi interaktif
+st.sidebar.write("Gunakan filter di atas untuk mengeksplorasi data berdasarkan tahun dan bulan!")
